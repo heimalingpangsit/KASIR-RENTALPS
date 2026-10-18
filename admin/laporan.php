@@ -1,0 +1,43 @@
+<?php
+require __DIR__ . '/_l.php';
+require __DIR__ . '/../includes/report.php';
+[$from, $to, $range] = report_range($_GET, '7hari');
+$r = report_data($d, $from, $to);
+$today = date('Y-m-d');
+$pdfUrl = 'laporan-pdf.php?from=' . $from . '&to=' . $to;
+$GLOBALS['noh1'] = true;
+a_head('Laporan');
+$tab = fn($k, $l) => '<a href="?range=' . $k . '" class="' . ($range === $k ? 'on' : '') . '">' . $l . '</a>';
+echo '<div class="toolbar"><h2>Laporan Pemasukan</h2><nav class="seg">' . $tab('hari_ini', 'Hari Ini') . $tab('7hari', '7 Hari') . $tab('30hari', '30 Hari') . '</nav></div>';
+echo '<div class="card"><form method="get" class="inl rng"><label class="f" style="margin:0">Dari<input type="date" name="from" value="' . e($from) . '" max="' . $today . '" required></label><label class="f" style="margin:0">Sampai<input type="date" name="to" value="' . e($to) . '" max="' . $today . '" required></label><button class="btn"><i class="fa-solid fa-filter"></i> Tampilkan</button></form>'
+   . '<div class="inl mt"><a class="btn red" href="' . e($pdfUrl) . '"><i class="fa-solid fa-file-pdf"></i> Download PDF periode ini</a><a class="btn" href="laporan-pdf.php?range=hari_ini"><i class="fa-solid fa-file-pdf"></i> PDF hari ini saja</a></div>'
+   . '<p class="mu sm" style="margin:10px 0 0">Periode: <b>' . e(tgl_id($from)) . ($from === $to ? '' : ' – ' . e(tgl_id($to))) . '</b>. Pilih tanggal bebas lalu klik Download PDF.</p></div>';
+$ex = 'laporan-csv.php?from=' . $from . '&to=' . $to . '&type=';
+echo '<div class="card"><b>Ekspor Excel / CSV</b> <span class="mu sm">(periode yang sama, bisa dibuka di Excel atau Google Sheets)</span><div class="inl mt"><a class="btn" href="' . e($ex) . 'transaksi"><i class="fa-solid fa-file-csv"></i> Transaksi</a><a class="btn" href="' . e($ex) . 'harian"><i class="fa-solid fa-file-csv"></i> Harian</a><a class="btn" href="' . e($ex) . 'tv"><i class="fa-solid fa-file-csv"></i> Per TV</a><a class="btn" href="' . e($ex) . 'menu"><i class="fa-solid fa-file-csv"></i> Menu &amp; untung</a></div></div>';
+$avg = $r['n'] ? (int) round($r['total'] / $r['n']) : 0;
+echo '<div class="stat"><div class="card"><b>' . $r['n'] . '</b><span class="mu sm">Total Transaksi</span></div><div class="card"><b>' . rp($r['total']) . '</b><span class="mu sm">Total Pemasukan</span></div><div class="card"><b>' . rp($avg) . '</b><span class="mu sm">Rata-rata per Transaksi</span></div></div>';
+echo '<p class="mu sm" style="margin:-6px 0 16px">Billing ' . rp($r['bill']) . ' · Makan &amp; minum ' . rp($r['fnb']) . '</p>';
+echo '<p class="mu sm" style="margin:-10px 0 16px">HPP makan &amp; minum ' . rp((int) $r['fnb_cost']) . ' · <b>Laba kotor ' . rp($r['total'] - (int) $r['fnb_cost']) . '</b> (omzet dikurangi HPP menu; billing dianggap tanpa modal)</p>';
+echo '<div class="card ov"><table><tr><th>Tanggal</th><th>Transaksi</th><th class="hm">Billing</th><th class="hm">Makan &amp; Minum</th><th>Pemasukan</th></tr>';
+if (!$r['daily']) echo '<tr><td colspan="5" class="c mu">Belum ada transaksi di rentang ini.</td></tr>';
+foreach ($r['daily'] as $day => $v) echo '<tr><td>' . e(tgl_id($day)) . '</td><td>' . $v['n'] . '</td><td class="hm">' . rp($v['bill']) . '</td><td class="hm">' . rp($v['fnb']) . '</td><td><b>' . rp($v['total']) . '</b></td></tr>';
+echo '</table></div>';
+echo '<h2 class="sec">Paket Billing Terlaris</h2><div class="card ov"><table><tr><th>#</th><th>Paket</th><th>Terjual</th><th>Pemasukan</th></tr>';
+if (!$r['pkgs']) echo '<tr><td colspan="4" class="c mu">Belum ada data.</td></tr>';
+foreach ($r['pkgs'] as $i => $p) echo '<tr><td>' . ($i + 1) . '</td><td>' . e($p['label']) . '</td><td>' . (int) $p['n'] . 'x</td><td>' . rp((int) $p['omzet']) . '</td></tr>';
+echo '</table></div>';
+echo '<h2 class="sec">Menu Terlaris</h2><div class="card ov"><table><tr><th>#</th><th>Menu</th><th>Terjual</th><th>Pemasukan</th><th>HPP</th><th>Untung</th></tr>';
+if (!$r['menus']) echo '<tr><td colspan="6" class="c mu">Belum ada data.</td></tr>';
+foreach ($r['menus'] as $i => $p) echo '<tr><td>' . ($i + 1) . '</td><td>' . e($p['item_name']) . '</td><td>' . (int) $p['qty'] . 'x</td><td>' . rp((int) $p['omzet']) . '</td><td>' . rp((int) $p['cost']) . '</td><td><b>' . rp((int) $p['omzet'] - (int) $p['cost']) . '</b></td></tr>';
+echo '</table></div>';
+$jam = fn(int $m) => number_format($m / 60, 1, ',', '.') . ' jam';
+echo '<h2 class="sec">Pemasukan per Tipe</h2><div class="card ov"><table><tr><th>Tipe</th><th>Jumlah TV</th><th>Transaksi</th><th>Jam terjual</th><th>Billing</th><th class="hm">Makan &amp; Minum</th><th>Total</th></tr>';
+$types = report_types($r['units']);
+if (!$types) echo '<tr><td colspan="7" class="c mu">Belum ada TV.</td></tr>';
+foreach ($types as $t) echo '<tr><td><b>' . e($t['type']) . '</b></td><td>' . (int) $t['tvs'] . '</td><td>' . (int) $t['n'] . '</td><td>' . $jam((int) $t['mins']) . '</td><td>' . rp((int) $t['bill']) . '</td><td class="hm">' . rp((int) $t['fnb']) . '</td><td><b>' . rp((int) $t['total']) . '</b></td></tr>';
+echo '</table></div>';
+echo '<h2 class="sec">Pemasukan per TV</h2><div class="card ov"><table><tr><th>#</th><th>TV</th><th>Tipe</th><th>Transaksi</th><th>Jam terjual</th><th class="hm">Billing</th><th class="hm">Makan &amp; Minum</th><th>Total</th></tr>';
+if (!$r['units']) echo '<tr><td colspan="8" class="c mu">Belum ada TV.</td></tr>';
+foreach ($r['units'] as $i => $u) echo '<tr><td>' . ($i + 1) . '</td><td><b>' . e($u['name']) . '</b></td><td>' . e($u['type']) . '</td><td>' . (int) $u['n'] . '</td><td>' . $jam((int) $u['mins']) . '</td><td class="hm">' . rp((int) $u['bill']) . '</td><td class="hm">' . rp((int) $u['fnb']) . '</td><td><b>' . rp((int) $u['total']) . '</b></td></tr>';
+echo '</table></div><p class="mu sm">Jam terjual = total menit paket yang dibayar lunas (bukan jam nyala TV sebenarnya).</p>';
+a_foot();

@@ -1,0 +1,9 @@
+# file lokal / rahasia
+assets/qris.png
+assets/uploads/*
+!assets/uploads/.gitkeep
+!assets/uploads/.htaccess
+.DS_Store
+Thumbs.db
+*.log
+.env
